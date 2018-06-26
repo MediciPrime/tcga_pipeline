@@ -5,7 +5,7 @@ for reference in config['references']:
     for sample in config['references'][reference]:
         targets.extend(
             expand(
-                'data/counts/{reference}/{sample}.htseq.counts.txt',
+                'data/sam_files/{reference}/{sample}/Aligned.out.sam',
                 sample=sample,
                 reference=reference)
         )
@@ -16,24 +16,24 @@ rule all:
 
 rule trimgalore:
     input:
-        r1 = 'data/raw_reads/{sample}_R1.fastq.gz',
-        r2 = 'data/raw_reads/{sample}_R2.fastq.gz'
+        r1 = 'data/raw_reads/{sample}/{sample}_R1.fastq',
+        r2 = 'data/raw_reads/{sample}/{sample}_R2.fastq'
     output:
-        r1 = 'data/trimmed_reads/{sample}_R1_trimmed.fq',
-        r2 = 'data/trimmed_reads/{sample}_R2_trimmed.fq'
+        r1 = 'data/trimmed_reads/{sample}/{sample}_R1_val_1.fq',
+        r2 = 'data/trimmed_reads/{sample}/{sample}_R2_val_2.fq'
     params:
-        output_dir = 'data/trimmed_reads/'
+        output_dir = 'data/trimmed_reads/{sample}/'
     shell:
         'trim_galore --paired {input.r1} {input.r2} '
         '--output_dir {params.output_dir}'
 
 rule star_index:
     input:
-        ref_folder = 'data/reference/{reference}',
-        ref_fasta = 'data/reference/{reference}/{reference}.fa',
-        ref_gtf = 'data/reference/{reference}/{reference}.gtf'
+        ref_folder = 'data/references/{reference}',
+        ref_fasta = 'data/references/{reference}/{reference}.fa',
+        ref_gtf = 'data/references/{reference}/{reference}.gtf'
     output:
-        'data/reference/{reference}/SAindex'
+        'data/references/{reference}/SAindex'
     threads: 8
     shell:
         'STAR --runThreadN {threads} --runMode genomeGenerate '
@@ -42,10 +42,10 @@ rule star_index:
 
 rule starAlign_first:
     input:
-        genomeDir = 'data/reference/{reference}',
-        SA_index = 'data/reference/{reference}/SAindex',
-        r1 = 'data/trimmed_reads/{sample}_R1_trimmed.fq',
-        r2 = 'data/trimmed_reads/{sample}_R2_trimmed.fq'
+        genomeDir = 'data/references/{reference}',
+        SA_index = 'data/references/{reference}/SAindex',
+        r1 = 'data/trimmed_reads/{sample}/{sample}_R1_val_1.fq',
+        r2 = 'data/trimmed_reads/{sample}/{sample}_R2_val_2.fq'
     output:
         'data/sam_files/{reference}/{sample}/Aligned.out.sam'
     params:
@@ -57,6 +57,6 @@ rule starAlign_first:
         '--outFilterMultimapScoreRange 1 --outFilterMultimapNmax 20 '
         '--outFilterMismatchNmax 10 --alignMatesGapMax 1000000 '
         '--sjdbScore 2 --alignSJDBoverhangMin 1 --genomeLoad NoSharedMemory '
-        '--readFilesCommand <bzcat | cat | zcat> --sjdbOverhang 100 '
+        '--sjdbOverhang 100 '
         '--outFilterMatchNminOverLread 0.33 --outFilterScoreMinOverLread 0.33 '
-        '--outSAMstrangField intronMotif --outSAMtype None --outSAMmode None'
+        '--outSAMstrandField intronMotif --outSAMtype None --outSAMmode None'
