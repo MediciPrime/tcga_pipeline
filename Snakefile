@@ -1,11 +1,13 @@
 configfile:  "config.yaml"
 
 targets = []
-for sample in config['references']['samples']:
-    targets.extend(
-        expand(
-            'data/counts/{sample}.htseq.counts.txt',
-            sample=sample)
+for reference in config['references']:
+    for sample in config['references'][reference]:
+        targets.extend(
+            expand(
+                'data/counts/{reference}/{sample}.htseq.counts.txt',
+                sample=sample,
+                reference=reference)
         )
 
 rule all:
@@ -27,11 +29,11 @@ rule trimgalore:
 
 rule star_index:
     input:
-        ref_folder = 'data/reference/hg38',
-        ref_fasta = 'data/reference/hg38/hg38.fa',
-        ref_gtf = 'data/reference/hg38/hg38.gtf'
+        ref_folder = 'data/reference/{reference}',
+        ref_fasta = 'data/reference/{reference}/{reference}.fa',
+        ref_gtf = 'data/reference/{reference}/{reference}.gtf'
     output:
-        'data/reference/hg38/SAindex'
+        'data/reference/{params.reference}/SAindex'
     threads: 8
     shell:
         'STAR --runThreadN {threads} --runMode genomeGenerate '
