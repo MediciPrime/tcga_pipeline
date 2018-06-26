@@ -25,7 +25,7 @@ rule trimgalore:
         output_dir = 'data/trimmed_reads/'
     shell:
         'trim_galore --paired {input.r1} {input.r2} '
-        '--output_dir {output_dir}'
+        '--output_dir {params.output_dir}'
 
 rule star_index:
     input:
@@ -33,7 +33,7 @@ rule star_index:
         ref_fasta = 'data/reference/{reference}/{reference}.fa',
         ref_gtf = 'data/reference/{reference}/{reference}.gtf'
     output:
-        'data/reference/{params.reference}/SAindex'
+        'data/reference/{reference}/SAindex'
     threads: 8
     shell:
         'STAR --runThreadN {threads} --runMode genomeGenerate '
@@ -42,9 +42,21 @@ rule star_index:
 
 rule starAlign_first:
     input:
-        genomeDir = 'data/reference/hg38',
-        SA_index = 'data/reference/hg38/SAindex',
+        genomeDir = 'data/reference/{reference}',
+        SA_index = 'data/reference/{reference}/SAindex',
         r1 = 'data/trimmed_reads/{sample}_R1_trimmed.fq',
         r2 = 'data/trimmed_reads/{sample}_R2_trimmed.fq'
     output:
-        'data/sam_files/hg38/{sample
+        'data/sam_files/{reference}/{sample}/Aligned.out.sam'
+    params:
+        sam_prefix = 'data/sam_files/{reference}/{sample}/'
+    threads: 4
+    shell:
+        'STAR --runThreadN {threads} --genomeDir {input.genomeDir} '
+        '--readFilesIn {input.r1} {input.r2} --alignIntronMax 500000 '
+        '--outFilterMultimapScoreRange 1 --outFilterMultimapNmax 20 '
+        '--outFilterMismatchNmax 10 --alignMatesGapMax 1000000 '
+        '--sjdbScore 2 --alignSJDBoverhangMin 1 --genomeLoad NoSharedMemory '
+        '--readFilesCommand <bzcat | cat | zcat> --sjdbOverhang 100 '
+        '--outFilterMatchNminOverLread 0.33 --outFilterScoreMinOverLread 0.33 '
+        '--outSAMstrangField intronMotif --outSAMtype None --outSAMmode None'
