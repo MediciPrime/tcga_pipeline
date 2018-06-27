@@ -5,7 +5,7 @@ for reference in config['references']:
     for sample in config['references'][reference]:
         targets.extend(
             expand(
-                'data/sam_files/{reference}/{sample}/SJ.out.tab',
+                'data/bam_files/{reference}/{sample}/Aligned.sortedByCoord.out.bam',
                 reference=reference, sample=sample)
     )
 
@@ -59,24 +59,35 @@ rule starAlign_first:
         '--sjdbOverhang 100 --outFileNamePrefix {params.sam_prefix} '
         '--outFilterMatchNminOverLread 0.33 --outFilterScoreMinOverLread 0.33 '
         '--outSAMstrandField intronMotif --outSAMtype None --outSAMmode None'
+
+def get_sjtab(wc):
+    samples = []
+    for v in config['references'][wc.reference]:
+        samples.append(v)
+    return expand('data/sam_files/{reference}/{sample}/SJ.out.tab',
+                  sample=samples, reference=wc.reference)
         
-# rule starAlign_second:
-#     input:
-#         trimmed_reads = get_samples,
-#         SA_index = 'data/sam_files/{reference}/SAindex'
-#     output:
-#         'data/sam_files/{reference}/Aligned.out.sam'
-#     params:
-#         genomeDir = 'data/sam_files/{reference}/'
-#     threads: 4
-#     shell:
-#         'STAR --runThreadN {threads} --genomeDir {params.genomeDir} '
-#         '--readFilesIn {input.trimmed_reads} --alignIntronMax 500000 '
-#         '--outFilterMultimapScoreRange 1 --outFilterMultimapNmax 20 '
-#         '--outFilterMismatchNmax 10 --alignMatesGapMax 1000000 --sjdbScore 2 '
-#         '--alignSJDBoverhangMin 1 --genomeLoad NoSharedMemory '
-#         '--limitBAMsortRAM 0 --outFilterMatchNminOverLread 0.33 '
-#         '--outFilterScoreMinOverLread 0.33 --sjdbOverhang 100 '
-#         '--outSAMstrandField intronMotif --outSAMattributes NH HI NM MD AS XS '
-#         '--outSAMunmapped Within --outSAMtype BAM SortedByCoordinate '
-#         '--outSAMheaderHD @HD VN:1.4'
+rule starAlign_second:
+    input:
+        r1 = 'data/trimmed_reads/{sample}/{sample}_R1_val_1.fq',
+        r2 = 'data/trimmed_reads/{sample}/{sample}_R2_val_2.fq',
+        sj_tab = get_sjtab,
+        SA_index = 'data/references/{reference}/SAindex'
+    output:
+        'data/bam_files/{reference}/{sample}/Aligned.sortedByCoord.out.bam'
+    params:
+        genomeDir = 'data/references/{reference}/',
+        bam_prefix = 'data/bam_files/{reference}/{sample}/'
+    threads: 4
+    shell:
+        'STAR --runThreadN {threads} --genomeDir {params.genomeDir} '
+        '--readFilesIn {input.r1} {input.r2} --alignIntronMax 500000 '
+        '--outFilterMultimapScoreRange 1 --outFilterMultimapNmax 20 '
+        '--outFilterMismatchNmax 10 --alignMatesGapMax 1000000 --sjdbScore 2 '
+        '--alignSJDBoverhangMin 1 --genomeLoad NoSharedMemory '
+        '--limitBAMsortRAM 0 --outFilterMatchNminOverLread 0.33 '
+        '--outFilterScoreMinOverLread 0.33 --sjdbOverhang 100 '
+        '--outSAMstrandField intronMotif --outSAMattributes NH HI NM MD AS XS '
+        '--outSAMunmapped Within --outSAMtype BAM SortedByCoordinate '
+        '--outSAMheaderHD @HD VN:1.4 --sjdbFileChrStartEnd {input.sj_tab} '
+        '--outFileNamePrefix {params.bam_prefix}'
