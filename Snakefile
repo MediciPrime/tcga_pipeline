@@ -5,7 +5,7 @@ for reference in config['references']:
     for sample in config['references'][reference]:
         targets.extend(
             expand(
-                'data/bam_files/{reference}/{sample}/Aligned.sortedByCoord.out.bam',
+                'data/counts/{reference}/{sample}/{sample}_counts.txt',
                 reference=reference, sample=sample)
     )
 
@@ -91,3 +91,13 @@ rule starAlign_second:
         '--outSAMunmapped Within --outSAMtype BAM SortedByCoordinate '
         '--outSAMheaderHD @HD VN:1.4 --sjdbFileChrStartEnd {input.sj_tab} '
         '--outFileNamePrefix {params.bam_prefix}'
+
+rule htseq_count:
+    input:
+        sorted_bam = 'data/bam_files/{reference}/{sample}/Aligned.sortedByCoord.out.bam',
+        gtf_file = 'data/references/{reference}/{reference}.gtf'
+    output:
+        'data/counts/{reference}/{sample}/{sample}_counts.txt'
+    shell:
+        'samtools view -F 4 {input.sorted_bam} | htseq-count -m intersection-nonempty '
+        '-i gene_id -r pos -s no - {input.gtf_file} > {output}'
