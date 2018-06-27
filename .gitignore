@@ -1,2 +1,4 @@
 # Folders To Ignore
 data/
+.snakemake/
+Log.out

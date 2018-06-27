@@ -3,7 +3,7 @@
 ############################################
 
 references:
-  hg38:
+  hg38_part:
     - normal_1
     - normal_2
     - normal_3
