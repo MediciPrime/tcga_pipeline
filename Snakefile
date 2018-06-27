@@ -2,40 +2,28 @@ configfile:  "config.yaml"
 
 targets = []
 for reference in config['references']:
-    targets.extend(
-        expand(
-            'data/sam_files/{reference}/Aligned.out.sam',
-            reference=reference)
+    for sample in config['references'][reference]:
+        targets.extend(
+            expand(
+                'data/sam_files/{reference}/{sample}/SJ.out.tab',
+                reference=reference, sample=sample)
     )
 
 rule all:
     input:
         targets
-
-def get_raw(wc):
-    raw_reads = []
-    for v in config['references'][wc.reference]:
-        raw_reads.extend(v)
-    return expand('data/raw_reads/{sample}/{sample}_R{num}.fastq',
-                  sample=samples, num=[1,2])
-
-def get_trimmed(wc):
-    trimmed_reads = []
-    for v in config['references'][wc.reference]:
-        trimmed_reads.extend(v)
-        return expand('data/trimmed_reads/{sample}/{sample}_R{num}_val_{num}.fastq',
-                      sample=samples, num=[1,2])
-
         
 rule trimgalore:
     input:
-        raw_reads = get_raw
+        r1 = 'data/raw_reads/{sample}/{sample}_R1.fastq',
+        r2 = 'data/raw_reads/{sample}/{sample}_R2.fastq'
     output:
-        trimmed_reads = get_trimmed
+        r1 = 'data/trimmed_reads/{sample}/{sample}_R1_val_1.fq',
+        r2 = 'data/trimmed_reads/{sample}/{sample}_R1_val_2.fq'
     params:
         output_dir = 'data/trimmed_reads/{sample}/'
     shell:
-        'trim_galore --paired {input.raw_reads} '
+        'trim_galore --paired {input.r1} {input.r2} '
         '--output_dir {params.output_dir}'
 
 rule star_index:
@@ -50,23 +38,17 @@ rule star_index:
         'STAR --runThreadN {threads} --runMode genomeGenerate '
         '--genomeDir {input.ref_folder} --genomeFastaFiles {input.ref_fasta} '
         '--sjdbOverhang 100 --sjdbGTFfile {input.ref_gtf}'
-
-def get_samples(wc):
-    samples = []
-    for v in config['references'][wc.reference]:
-        samples.extend(v)
-    return expand('data/trimmed_reads/{sample}/{sample}_R{num}_val_{num}.fq',
-                  sample=samples, num=[1,2])
         
 rule starAlign_first:
     input:
         genomeDir = 'data/references/{reference}',
         SA_index = 'data/references/{reference}/SAindex',
-        trimmed_reads = get_samples
+        r1 = 'data/trimmed_reads/{sample}/{sample}_R1_val_1.fq',
+        r2 = 'data/trimmed_reads/{sample}/{sample}_R2_val_2.fq'
     output:
-        'data/sam_files/{reference}/SJ.out.tab'
+        'data/sam_files/{reference}/{sample}/SJ.out.tab'
     params:
-        sam_prefix = 'data/sam_files/{reference}/'
+        sam_prefix = 'data/sam_files/{reference}/{sample}/'
     threads: 4
     shell:
         'STAR --runThreadN {threads} --genomeDir {input.genomeDir} '
@@ -77,37 +59,24 @@ rule starAlign_first:
         '--sjdbOverhang 100 --outFileNamePrefix {params.sam_prefix} '
         '--outFilterMatchNminOverLread 0.33 --outFilterScoreMinOverLread 0.33 '
         '--outSAMstrandField intronMotif --outSAMtype None --outSAMmode None'
-
-rule star_index_2:
-    input:
-        ref_fasta = 'data/references/{reference}/{reference}.fa',
-        sj_outtab = 'data/sam_files/{reference}/SJ.out.tab'
-    output:
-        genomeOut = 'data/sam_files/{reference}/SAindex'
-    params:
-        genomeDirOut = 'data/sam_files/{reference}/'
-    shell:
-        'STAR --runThreadN {threads} --runMode genomeGenerate '
-        '--genomeDir {params.genomeDirOut} --genomeFastaFiles {input.ref_fasta} '
-        '--sjdbOverhang 100 --sjdbFileChrStartEnd {input.sj_outtab}'
         
-rule starAlign_second:
-    input:
-        trimmed_reads = get_samples,
-        SA_index = 'data/sam_files/{reference}/SAindex'
-    output:
-        'data/sam_files/{reference}/Aligned.out.sam'
-    params:
-        genomeDir = 'data/sam_files/{reference}/'
-    threads: 4
-    shell:
-        'STAR --runThreadN {threads} --genomeDir {params.genomeDir} '
-        '--readFilesIn {input.trimmed_reads} --alignIntronMax 500000 '
-        '--outFilterMultimapScoreRange 1 --outFilterMultimapNmax 20 '
-        '--outFilterMismatchNmax 10 --alignMatesGapMax 1000000 --sjdbScore 2 '
-        '--alignSJDBoverhangMin 1 --genomeLoad NoSharedMemory '
-        '--limitBAMsortRAM 0 --outFilterMatchNminOverLread 0.33 '
-        '--outFilterScoreMinOverLread 0.33 --sjdbOverhang 100 '
-        '--outSAMstrandField intronMotif --outSAMattributes NH HI NM MD AS XS '
-        '--outSAMunmapped Within --outSAMtype BAM SortedByCoordinate '
-        '--outSAMheaderHD @HD VN:1.4'
+# rule starAlign_second:
+#     input:
+#         trimmed_reads = get_samples,
+#         SA_index = 'data/sam_files/{reference}/SAindex'
+#     output:
+#         'data/sam_files/{reference}/Aligned.out.sam'
+#     params:
+#         genomeDir = 'data/sam_files/{reference}/'
+#     threads: 4
+#     shell:
+#         'STAR --runThreadN {threads} --genomeDir {params.genomeDir} '
+#         '--readFilesIn {input.trimmed_reads} --alignIntronMax 500000 '
+#         '--outFilterMultimapScoreRange 1 --outFilterMultimapNmax 20 '
+#         '--outFilterMismatchNmax 10 --alignMatesGapMax 1000000 --sjdbScore 2 '
+#         '--alignSJDBoverhangMin 1 --genomeLoad NoSharedMemory '
+#         '--limitBAMsortRAM 0 --outFilterMatchNminOverLread 0.33 '
+#         '--outFilterScoreMinOverLread 0.33 --sjdbOverhang 100 '
+#         '--outSAMstrandField intronMotif --outSAMattributes NH HI NM MD AS XS '
+#         '--outSAMunmapped Within --outSAMtype BAM SortedByCoordinate '
+#         '--outSAMheaderHD @HD VN:1.4'
