@@ -1,0 +1,164 @@
+## Consolidate Counts
+```{python}
+import pandas as pd
+
+# tissue dataframe
+tissue_1 = pd.read_table('tissue_counts_1.txt', index_col=0, names=['tissue_1'])[:-5]
+tissue_2 = pd.read_table('tissue_counts_2.txt', index_col=0, names=['tissue_2'])[:-5]
+tissue_3 = pd.read_table('tissue_counts_3.txt', index_col=0, names=['tissue_3'])[:-5]
+tissue_4 = pd.read_table('tissue_counts_4.txt', index_col=0, names=['tissue_4'])[:-5]
+tissue_5 = pd.read_table('tissue_counts_5.txt', index_col=0, names=['tissue_5'])[:-5]
+tissue_6 = pd.read_table('tissue_counts_6.txt', index_col=0, names=['tissue_6'])[:-5]
+tissue_7 = pd.read_table('tissue_counts_7.txt', index_col=0, names=['tissue_7'])[:-5]
+tissue_8 = pd.read_table('tissue_counts_8.txt', index_col=0, names=['tissue_8'])[:-5]
+tissue_9 = pd.read_table('tissue_counts_9.txt', index_col=0, names=['tissue_9'])[:-5]
+tissue_10 = pd.read_table('tissue_counts_10.txt', index_col=0, names=['tissue_10'])[:-5]
+tissue_11 = pd.read_table('tissue_counts_11.txt', index_col=0, names=['tissue_11'])[:-5]
+tissue_12 = pd.read_table('tissue_counts_12.txt', index_col=0, names=['tissue_12'])[:-5]
+tissue_13 = pd.read_table('tissue_counts_13.txt', index_col=0, names=['tissue_13'])[:-5]
+
+# combine tissue dataframe
+tissue = pd.merge(tissue_1, tissue_2, how='outer', left_index=True, right_index=True)
+tissue = pd.merge(tissue, tissue_3, how='outer', left_index=True, right_index=True)
+tissue = pd.merge(tissue, tissue_4, how='outer', left_index=True, right_index=True)
+tissue = pd.merge(tissue, tissue_5, how='outer', left_index=True, right_index=True)
+tissue = pd.merge(tissue, tissue_6, how='outer', left_index=True, right_index=True)
+tissue = pd.merge(tissue, tissue_7, how='outer', left_index=True, right_index=True)
+tissue = pd.merge(tissue, tissue_8, how='outer', left_index=True, right_index=True)
+tissue = pd.merge(tissue, tissue_9, how='outer', left_index=True, right_index=True)
+tissue = pd.merge(tissue, tissue_10, how='outer', left_index=True, right_index=True)
+tissue = pd.merge(tissue, tissue_11, how='outer', left_index=True, right_index=True)
+tissue = pd.merge(tissue, tissue_12, how='outer', left_index=True, right_index=True)
+tissue = pd.merge(tissue, tissue_13, how='outer', left_index=True, right_index=True)
+
+# PTEC dataframe
+normal_1 = pd.read_table('normal_1_counts.txt', index_col=0, names=['normal_1'])[:-5]
+normal_2 = pd.read_table('normal_2_counts.txt', index_col=0, names=['normal_2'])[:-5]
+normal_3 = pd.read_table('normal_3_counts.txt', index_col=0, names=['normal_3'])[:-5]
+
+# combine ptec (normal) dataframe
+ptec = pd.merge(normal_1, normal_2, how='outer', left_index=True, right_index=True)
+ptec = pd.merge(ptec, normal_3, how='outer', left_index=True, right_index=True)
+
+# ptec = pd.read_table('ptec_counts.txt', index_col=0, usecols=[0,6,7,8], skiprows=2,
+#                      header=None, names=['index', 'ptec_1', 'ptec_2', 'ptec_3'])
+
+# del ptec.index.name
+
+# PTEC: Keep Transcript if column has greater than or equal to 5 genes
+ptec_sub = ptec[ptec[['normal_1', 'normal_2', 'normal_3']] >= 5]
+ptec_sub = ptec_sub.dropna(subset = ['normal_1', 'normal_2', 'normal_3'])
+
+ptec_sub.to_csv('ptec_sub.csv')
+
+# TISSUE: Keep Transcript if 4 or more columns are NAN
+tissue_sub = tissue[tissue[['tissue_1', 'tissue_2', 'tissue_3', 'tissue_4', 'tissue_5', 'tissue_6',
+                            'tissue_7', 'tissue_8', 'tissue_9', 'tissue_10', 'tissue_11', 'tissue_12',
+                            'tissue_13']] >= 5]
+
+tissue_sub = tissue_sub.dropna(thresh=10)
+
+tissue_sub.to_csv('tissue_sub.csv')
+
+
+```
+
+## Extract Genes w/ counts >5 reads
+```{r}
+library(biomaRt)
+
+ensembl = useMart("ensembl", dataset="hsapiens_gene_ensembl")
+
+# PTEC Kidney Normal Samples
+ptec = read.table('ptec_sub.csv', header=TRUE, sep=',', row.names=1)
+
+ptec.index <- row.names(ptec)
+
+ptec.names <- getBM(attributes=c('ensembl_gene_id_version', 'hgnc_symbol',
+                                 'transcript_biotype'),
+                   filters = 'ensembl_gene_id_version',
+                   values = ptec.index,
+                   mart = ensembl)
+
+pnames <- ptec.names[, c('hgnc_symbol')]
+
+'%!in%' <- function(x,y)!('%in%'(x,y))
+
+pnames <- pnames[, 'hgnc_symbol' %!in% c("")]
+
+write(pnames, file='ptec_genes.txt')
+
+# Create list w/ transcript biotype
+pnames.biotype <- ptec.names[, c('hgnc_symbol', 'transcript_biotype')]
+
+write.table(pnames.biotype, file='ptec_genes_w_biotypes.tsv', sep='\t',
+            row.names=FALSE)
+
+# TCGA Tissue Fibrosis 0% Samples
+tissue = read.table('tissue_sub.csv', header=TRUE, sep=',', row.names=1)
+
+tissue.index <- row.names(tissue)
+
+tissue.names <- getBM(attributes=c('ensembl_gene_id_version', 'hgnc_symbol',
+                                   'transcript_biotype'),
+                      filters = 'ensembl_gene_id_version',
+                      values = tissue.index,
+                      mart = ensembl)
+
+tnames <- tissue.names[, c('hgnc_symbol')]
+
+tnames <- tnames[tnames %!in% c("")]
+
+write(tnames, file='tissue_genes.txt')
+
+# Create list w/ transcript biotype
+tnames.biotype <- tissue.names[, c('hgnc_symbol', 'transcript_biotype')]
+
+write.table(tnames.biotype, file='tissue_genes_w_biotype.tsv', sep='\t',
+            row.names=FALSE)
+```
+
+## Separate Coding from Non-coding Transcripts & Create Descriptive Graphs
+```{python}
+import pandas as pd
+
+tissue = pd.read_table('tissue_genes_w_biotype.tsv', sep='\t')
+ptec = pd.read_table('ptec_genes_w_biotypes.tsv', sep='\t')
+
+# Group Genes by Transcript Biotype
+tgroup = tissue.groupby(by='transcript_biotype')
+macro_lncRNA = pd.Series(['HELLPAR'])
+
+tcoding = tgroup.get_group(('protein_coding')).dropna()['hgnc_symbol']
+tncoding = tgroup.get_group('lincRNA').dropna()['hgnc_symbol']
+tncoding.append(macro_lncRNA)
+
+tcoding.to_csv('tissue_coding.csv', index=False)
+tncoding.to_csv('tissue_noncoding.csv', index=False)
+
+pgroup = ptec.groupby(by='transcript_biotype')
+
+pcoding = pgroup.get_group('protein_coding').dropna()['hgnc_symbol']
+pncoding = pgroup.get_group('lincRNA').dropna()['hgnc_symbol']
+pncoding.append(macro_lncRNA)
+
+pcoding.to_csv('ptec_coding.csv', index=False)
+pncoding.to_csv('ptec_noncoding.csv', index=False)
+
+# Plot Venn Diagram
+import matplotlib.pyplot as plt
+from matplotlib_venn import venn2
+
+venn2([set(pncoding), set(tncoding)], set_labels = ('PTEC Non-coding',
+                                                  'Tissue Non-coding'))
+plt.title('Comparison of Non-coding Transcripts for PTEC vs Tissue')
+plt.savefig('Venn_non-coding.png')
+plt.close()
+
+venn2([set(pcoding), set(tcoding)], set_labels = ('PTEC Coding',
+                                                  'Tissue Coding'))
+plt.title('Comparison of Coding Transcripts for PTEC vs Tissue')
+plt.savefig('Venn_coding.png')
+plt.close()
+
+```
